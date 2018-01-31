@@ -20,6 +20,6 @@ setup(
     author='Volodymyr Paslavskyy',
     author_email='qfoxic@gmail.com',
     packages=['grapher.core'],
-    url='https://github.com/qfoxic/grapher-server-core'
-
+    url='https://github.com/qfoxic/grapher-server-core',
+    download_url = 'https://github.com/qfoxic/grapher-server-core/archive/1.0.0.tar.gz'
 )
