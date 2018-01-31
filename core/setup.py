@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='grapher-core',
-    version='gcore-1.0.0',
+    version='1.0.0',
     license='Apache Software License',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
