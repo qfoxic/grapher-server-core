@@ -15,10 +15,12 @@ ssh -L LOCAL_PORT:127.0.0.1:GRAPHER_PORT grapher.host -- "python3 -m grapher.cor
 """
 
 import argparse
-import socketserver
+import asyncio
 import pkg_resources
 import json
 import re
+
+from websockets.server import serve
 
 from grapher.core.errors import GraphException
 from grapher.core.constants import (
@@ -38,98 +40,110 @@ PLUGINS = {
 }
 
 
-_driver = None
+class WebSocketHandler:
+    _driver = None
 
-
-class GraphTCPHandler(socketserver.BaseRequestHandler):
-    @staticmethod
-    def get_verb(line):
-        verb = line.strip().split(b' ')[0]
-        data = line.strip().split(b' ')[1:]
-        return verb.lower(), b' '.join(data).strip()
+    def __init__(self, request):
+        self.request = request
 
     @staticmethod
-    def load_driver(name):
-        global _driver
-        if _driver is None:
+    def _get_verb(line):
+        verb = line.strip().split(' ')[0]
+        data = line.strip().split(' ')[1:]
+        return verb.lower(), ' '.join(data).strip()
+
+    @staticmethod
+    def _parse_args(data):
+        # Parameters to a command can be passed in this format:
+        # DATA types=a,b&&show=False.
+        return {
+            arg.split('=', maxsplit=1)[0].lower():
+                arg.split('=', maxsplit=1)[1]
+            for arg in data.split('&&')
+        }
+
+    def _call_driver_method(self, method, args):
+        # TODO. Find a more elegant way to discover only exposed methods.
+        # TODO. Find a more elegant way to pass parameters as a dict.
+        return getattr(self._driver, re.sub('[^0-9a-zA-Z]+', '__', method))(**args)
+
+    async def _send_data(self, obj):
+        await self.request.send(json.dumps(obj, default=str) + '\n')
+
+    def load_driver(self, name):
+        if self._driver is None:
             try:
-                _driver = PLUGINS[name.strip().decode()]()
+                self._driver = PLUGINS[name.strip()]()
             except KeyError:
                 raise GraphException(NOT_FOUND)
         else:
             raise GraphException(ALREADY_DONE)
 
-    @staticmethod
-    def unload_driver():
-        global _driver
-        if _driver is not None:
-            _driver = None
+    def unload_driver(self):
+        if self._driver is not None:
+            self._driver = None
         else:
             raise GraphException(ALREADY_DONE)
 
-    def load_driver_method(self, verb, data):
-        global _driver
-        args = {}
-        if data:
-            try:
-                # Parameters to a command can be passed in this format:
-                # DATA types=a,b&&show=False.
-                args = {
-                    arg.decode().split('=', maxsplit=1)[0].lower():
-                        arg.decode().split('=', maxsplit=1)[1]
-                    for arg in data.split(b'&&')
-                }
-            except IndexError:
-                self.error_reply(INCORRECT_PARAMETERS)
+    async def reply(self, obj):
         try:
-            # TODO. Find a more elegant way to discover only exposed methods.
-            # TODO. Find a more elegant way to pass parameters as a dict.
-            response = getattr(_driver, re.sub('[^0-9a-zA-Z]+', '__', verb.decode()))(**args)
-            if response:
-                for r in response:
-                    self.reply(r)
-            self.info_reply(DONE)
-        except AttributeError:
-            self.error_reply(NOT_FOUND)
-        except TypeError as e:
-            print(e)
-            self.error_reply(INCORRECT_PARAMETERS)
-
-    def reply(self, obj):
-        self.request.sendall(json.dumps(obj, default=str).encode() + b'\n')
-
-    def error_reply(self, status):
-        try:
-            self.request.sendall(json.dumps({'error': status.decode()}).encode() + b'\n')
+            await self._send_data(obj)
         except BaseException as exc:
             print('Socket Error:', exc)
 
-    def info_reply(self, status):
-        try:
-            self.request.sendall(json.dumps({'info': status.decode()}).encode() + b'\n')
-        except BaseException as exc:
-            print('Socket Error:', exc)
+    async def error_reply(self, status):
+        await self.reply({'error': status})
 
-    def handle(self):
-        while True:
-            try:
-                line = self.request.recv(1024).strip()
-                verb, data = self.get_verb(line)
-                print('GOT REQUEST:', verb)
-                if not verb:
-                    self.error_reply(NOT_FOUND)
-                if verb == LOAD_VERB:
-                    self.load_driver(data)
-                    self.info_reply(DONE)
-                elif verb == UNLOAD_VERB:
-                    self.unload_driver()
-                    self.info_reply(DONE)
-                elif verb != LOAD_VERB and _driver is None:
-                    self.error_reply(DRIVER_NOT_LOADED)
-                else:
-                    self.load_driver_method(verb, data)
-            except GraphException as error:
-                self.error_reply(error.message)
+    async def info_reply(self, status):
+        await self.reply({'info': status})
+
+    async def handle(self, message):
+        try:
+            verb, data = self._get_verb(message)
+            print('GOT REQUEST: verb - {}, data = {}'.format(verb, data))
+            if not verb:
+                await self.error_reply(NOT_FOUND)
+            if verb == LOAD_VERB:
+                self.load_driver(data)
+                await self.info_reply(DONE)
+            elif verb == UNLOAD_VERB:
+                self.unload_driver()
+                await self.info_reply(DONE)
+            elif verb != LOAD_VERB and self._driver is None:
+                await self.error_reply(DRIVER_NOT_LOADED)
+            else:
+                args = {}
+                if data:
+                    try:
+                        args = self._parse_args(data)
+                    except IndexError:
+                        await self.error_reply(INCORRECT_PARAMETERS)
+                try:
+                    result = self._call_driver_method(verb, args)
+                    if result:
+                        async for res in result:
+                            if 'error' in res:
+                                raise GraphException(res['error'])
+                            else:
+                                # TODO. That kills browser. We need to send data in batches.
+                                await self.reply(res)
+                    await self.info_reply(DONE)
+                except AttributeError:
+                    import traceback
+                    print(traceback.format_exc())
+                    await self.error_reply(NOT_FOUND)
+                except TypeError:
+                    import traceback
+                    print(traceback.format_exc())
+                    await self.error_reply(INCORRECT_PARAMETERS)
+        except GraphException as error:
+            await self.error_reply(error.message)
+
+
+async def ws_handler(websocket, path):
+    handler = WebSocketHandler(websocket)
+    async for command in websocket:
+        await handler.handle(command)
 
 
 if __name__ == "__main__":
@@ -145,8 +159,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     port = args.port or PORT
-
-    with socketserver.TCPServer((HOST, port), GraphTCPHandler) as server:
-        # Activate the server; this will keep running until you
-        # interrupt the program with Ctrl-C
-        server.serve_forever()
+    asyncio.get_event_loop().run_until_complete(serve(ws_handler, HOST, port))
+    asyncio.get_event_loop().run_forever()

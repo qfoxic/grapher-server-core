@@ -31,15 +31,7 @@ You have to two options how you can run it:
   ```commandline.
   $ grapher_venv/bin/activate && python3 -m grapher.core.server --port 9999
   ```
-* Or you can configure ssh on remote box and open a ssh tunnel:
-  ```commandline.
-  $ ssh -L LOCAL_PORT:127.0.0.1:REMOTE_PORT grapher.dns.name -- "python3 -m grapher.core.server --port REMOTE_PORT"
-  ```
-  If server started ok you can verify it is responsive by loading driver:
-  ```commandline.
-  $ nc 127.0.0.1 9999
-  > load aws
-  ```
+* you can use any websocket client to play with the server. 
 
 ## Grapher protocol
 #### Overview
