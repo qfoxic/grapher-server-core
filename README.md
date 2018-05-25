@@ -69,5 +69,5 @@ exposed methods. So, grapher server itself support two verbs:
              > driver_method arg1=data1&&arg2=data2             
              ```
 
-## Grapher client (TBD)
-Currently, we support a client written with Qt Library (C++).
+## Grapher client
+Currently, we support a client written with Qt Library (C++) https://github.com/qfoxic/grapher-client-qt.
