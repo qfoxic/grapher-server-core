@@ -48,8 +48,8 @@ class WebSocketHandler:
 
     @staticmethod
     def _get_verb(line):
-        verb = line.strip().split(' ')[0]
-        data = line.strip().split(' ')[1:]
+        verb = line.strip('"\' ').split(' ')[0]
+        data = line.strip('"\' ').split(' ')[1:]
         return verb.lower(), ' '.join(data).strip()
 
     @staticmethod
