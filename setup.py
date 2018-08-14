@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='grapher-core',
-    version='2.0.1',
+    version='2.0.2',
     license='Apache Software License',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
@@ -23,5 +23,5 @@ setup(
     packages=['grapher.core'],
     install_requires=['websockets==6.0'],
     url='https://github.com/qfoxic/grapher-server-core',
-    download_url='https://github.com/qfoxic/grapher-server-core/archive/2.0.1.tar.gz'
+    download_url='https://github.com/qfoxic/grapher-server-core/archive/2.0.2.tar.gz'
 )

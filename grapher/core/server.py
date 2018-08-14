@@ -48,8 +48,8 @@ class WebSocketHandler:
 
     @staticmethod
     def _get_verb(line):
-        verb = line.strip('"\' ').split(' ')[0]
-        data = line.strip('"\' ').split(' ')[1:]
+        verb = line.strip('" ').split(' ')[0]
+        data = line.strip('" ').split(' ')[1:]
         return verb.lower(), ' '.join(data).strip()
 
     @staticmethod
@@ -125,14 +125,13 @@ class WebSocketHandler:
                             if 'error' in res:
                                 raise GraphException(res['error'])
                             else:
-                                # TODO. That kills browser. We need to send data in batches.
                                 await self.reply(res)
                     await self.info_reply(DONE)
                 except AttributeError:
                     import traceback
                     print(traceback.format_exc())
                     await self.error_reply(NOT_FOUND)
-                except TypeError:
+                except (TypeError, IndexError):
                     import traceback
                     print(traceback.format_exc())
                     await self.error_reply(INCORRECT_PARAMETERS)
