@@ -21,7 +21,7 @@ setup(
     author='Volodymyr Paslavskyy',
     author_email='qfoxic@gmail.com',
     packages=['grapher.core'],
-    install_requires=['websockets==6.0'],
+    install_requires=['websockets==9.1'],
     url='https://github.com/qfoxic/grapher-server-core',
     download_url='https://github.com/qfoxic/grapher-server-core/archive/2.0.2.tar.gz'
 )
